@@ -22,7 +22,7 @@
 		<logstash-logback.version>5.1</logstash-logback.version>
 		<kafka-clients.version>1.1.0</kafka-clients.version>
 		<canal-client.version>1.0.24</canal-client.version>
-		<elasticsearch-transport.version>6.3.0</elasticsearch-transport.version>
+		<elasticsearch-transport.version>5.6.1</elasticsearch-transport.version>
 		
 		
 		<maven-compiler-plugin.version>3.3</maven-compiler-plugin.version>

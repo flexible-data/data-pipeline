@@ -16,7 +16,13 @@
  */
 package io.flexibledata.pipeline.output.elasticsearch;
 
+import java.net.InetAddress;
 import java.net.UnknownHostException;
+
+import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.transport.client.PreBuiltTransportClient;
 
 /**
  * 封装ES的TransportClient类
@@ -29,7 +35,6 @@ public class ESClient {
 	private String appSecret;
 	private String host;
 	private Integer port;
-	private Boolean sniff;
 
 	public ESClient(String cluster, String appKey, String appSecret, String host, Integer port, Boolean sniff) {
 		this.cluster = cluster;
@@ -37,15 +42,12 @@ public class ESClient {
 		this.appSecret = appSecret;
 		this.host = host;
 		this.port = port;
-		this.sniff = sniff;
 	}
 
 	public TransportClient getClient() throws UnknownHostException {
 		Settings.Builder builder = Settings.builder().put("cluster.name", cluster);
-		builder.put("client.transport.sniff", sniff);
 		builder.put("xpack.security.user", appKey + ":" + appSecret);
-		Settings settings = builder.build();
-		TransportClient client = new PreBuiltXPackTransportClient(settings).addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(host), port));
-		return client;
+		Settings settings = builder.put("cluster.name", cluster).put("client.transport.sniff", true).build();
+		return new PreBuiltTransportClient(settings).addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(host), port));
 	}
 }

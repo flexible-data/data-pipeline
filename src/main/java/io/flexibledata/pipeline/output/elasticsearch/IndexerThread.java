@@ -18,6 +18,8 @@ package io.flexibledata.pipeline.output.elasticsearch;
 
 import io.flexibledata.pipeline.event.Event;
 import io.flexibledata.pipeline.event.EventType;
+import io.flexibledata.pipeline.mq.MessageQueue;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -27,8 +29,10 @@ import lombok.extern.slf4j.Slf4j;
  *
  */
 @Slf4j
+@AllArgsConstructor
 public class IndexerThread extends Thread {
-	private EventQueue<Event> queue;
+	private MessageQueue<Event> queue;
+	private ESTemplate esTemplate;
 
 	@Override
 	public void run() {
@@ -46,7 +50,7 @@ public class IndexerThread extends Thread {
 				handleDeleteEvent(event);
 				break;
 			default:
-				logger.warn("数据库事件变更类型有误！");
+				log.warn("数据库事件变更类型有误！");
 			}
 		}
 	}

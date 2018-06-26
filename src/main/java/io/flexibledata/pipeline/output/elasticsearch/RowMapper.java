@@ -16,6 +16,8 @@
  */
 package io.flexibledata.pipeline.output.elasticsearch;
 
+import org.elasticsearch.search.SearchHit;
+
 /**
  * ES记录映射
  * 

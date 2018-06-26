@@ -24,9 +24,4 @@ package io.flexibledata.pipeline.output.elasticsearch;
  */
 public interface ESOperations {
 
-	TransportClient getClient();
-
-	<T> List<T> queryWithFilter(String index, String type, QueryBuilder queryBuilder, RowMapper<T> mapper);
-
-	<T> List<T> queryWithFilter(String index, String type, QueryBuilder queryBuilder, Integer pageNum, Integer pageSize, RowMapper<T> mapper);
 }

@@ -16,6 +16,40 @@
  */
 package io.flexibledata.pipeline.output.elasticsearch;
 
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * ES模板类
  *
@@ -34,42 +68,8 @@ public class ESTemplate implements ESOperations {
 		this.client = esClient.getClient();
 	}
 
-	@Override
 	public TransportClient getClient() {
 		return client;
-	}
-
-	/**
-	 * 无条件查询方法
-	 * 
-	 * @param index
-	 *            索引名称
-	 * @param type
-	 *            类型名称
-	 * @param mapper
-	 *            映射接口实现类
-	 * @param pageNum
-	 *            分页号
-	 * @param pageSize
-	 *            分页大小
-	 * @return
-	 */
-	public <T> List<T> query(String index, String type, RowMapper<T> mapper, Integer pageNum, Integer pageSize) {
-		LOGGER.info("Enter into query method. index={}, type={}", index, type);
-		SearchRequestBuilder searchRequestBuilder = client.prepareSearch(index).setTypes(type).setSearchType(SearchType.QUERY_THEN_FETCH);
-		SearchResponse searchResponse = null;
-		if (pageNum != null && pageSize != null) {
-			searchResponse = searchRequestBuilder.setFrom((pageNum - 1) * pageSize).setSize(pageSize).get();
-		} else {
-			searchResponse = searchRequestBuilder.get();
-		}
-		SearchHit[] hits = searchResponse.getHits().getHits();
-		setTotalSize(searchResponse);
-		List<T> rs = new ArrayList<T>();
-		for (SearchHit searchHit : hits) {
-			rs.add(mapper.mapRow(searchHit));
-		}
-		return rs;
 	}
 
 	/**
@@ -85,7 +85,6 @@ public class ESTemplate implements ESOperations {
 	 *            映射接口实现类
 	 * @return
 	 */
-	@Override
 	public <T> List<T> queryWithFilter(String index, String type, QueryBuilder queryBuilder, RowMapper<T> mapper) {
 		LOGGER.info("Enter into queryWithFilter method. index={}, type={}", index, type);
 		SearchRequestBuilder searchRequestBuilder = client.prepareSearch(index).setTypes(type).setSearchType(SearchType.QUERY_THEN_FETCH);
@@ -120,167 +119,10 @@ public class ESTemplate implements ESOperations {
 	 *            映射接口实现类
 	 * @return
 	 */
-	@Override
-	public <T> List<T> queryWithFilter(String index, String type, QueryBuilder queryBuilder, Integer pageNum, Integer pageSize, RowMapper<T> mapper) {
-		LOGGER.info("Enter into queryWithFilter method. index={}, type={}, pageNum={}, pageSize={}", index, type, pageNum, pageSize);
-		SearchRequestBuilder searchRequestBuilder = client.prepareSearch(index).setTypes(type).setSearchType(SearchType.QUERY_THEN_FETCH);
-
-		searchRequestBuilder.setQuery(queryBuilder);
-		SearchResponse searchResponse = null;
-		if (pageNum != null && pageSize != null) {
-			searchResponse = searchRequestBuilder.setFrom((pageNum - 1) * pageSize).setSize(pageSize).get();
-		} else {
-			searchResponse = searchRequestBuilder.get();
-		}
-
-		SearchHit[] hits = searchResponse.getHits().getHits();
-		setTotalSize(searchResponse);
-		List<T> rs = new ArrayList<T>();
-		for (SearchHit searchHit : hits) {
-			rs.add(mapper.mapRow(searchHit));
-		}
-		return rs;
-	}
-
-	/**
-	 * 通过DSL条件查询方法
-	 * 
-	 * @param index
-	 *            索引名称
-	 * @param type
-	 *            类型名称
-	 * @param queryBuilder
-	 *            dslQuery语句构造类
-	 * @param pageNum
-	 *            分页号
-	 * @param pageSize
-	 *            分页大小
-	 * @param mapper
-	 *            映射接口实现类
-	 * @return
-	 */
 	public SearchHit[] queryWithFilter(String index, String type, QueryBuilder queryBuilder) {
 		LOGGER.info("Enter into queryWithFilter method. index={}, type={}", index, type);
 		SearchRequestBuilder searchRequestBuilder = client.prepareSearch(index).setTypes(type).setSearchType(SearchType.QUERY_THEN_FETCH);
 		searchRequestBuilder.setQuery(queryBuilder);
-		SearchResponse searchResponse = searchRequestBuilder.get();
-		return searchResponse.getHits().getHits();
-	}
-
-	/**
-	 * 通过DSL条件查询方法
-	 * 
-	 * @param index
-	 *            索引名称
-	 * @param type
-	 *            类型名称
-	 * @param queryBuilder
-	 *            dslQuery语句构造类
-	 * @param sortField
-	 *            排序字段名
-	 * @param sortType
-	 *            排序类型，"ASC"代表升序，"DESC"代码降序
-	 * @param pageNum
-	 *            分页号
-	 * @param pageSize
-	 *            分页大小
-	 * @param mapper
-	 *            映射接口实现类
-	 * @return
-	 */
-	public <T> List<T> pagingAndSortQuery(String index, String type, QueryBuilder queryBuilder, String sortField, String sortType, Integer pageNum, Integer pageSize,
-			RowMapper<T> mapper) {
-		LOGGER.info("Enter into pagingAndSortQuery method. index={}, type={}, sortField={}, sortType={}, pageNum={}, pageSize={}", index, type, sortField, sortType, pageNum,
-				pageSize);
-		SearchRequestBuilder searchRequestBuilder = null;
-
-		if (sortType.equals("ASC") || sortType.equals("asc")) {
-			searchRequestBuilder = client.prepareSearch(index).setTypes(type).setSearchType(SearchType.QUERY_THEN_FETCH).addSort(sortField, SortOrder.ASC);
-		} else {
-			searchRequestBuilder = client.prepareSearch(index).setTypes(type).setSearchType(SearchType.QUERY_THEN_FETCH).addSort(sortField, SortOrder.DESC);
-		}
-
-		if (queryBuilder != null) {
-			searchRequestBuilder.setQuery(queryBuilder);
-		}
-
-		SearchResponse searchResponse = searchRequestBuilder.setFrom((pageNum - 1) * pageSize).setSize(pageSize).get();
-		SearchHit[] hits = searchResponse.getHits().getHits();
-		setTotalSize(searchResponse);
-		List<T> rs = new ArrayList<T>();
-		for (SearchHit searchHit : hits) {
-			rs.add(mapper.mapRow(searchHit));
-		}
-		return rs;
-	}
-
-	/**
-	 * 通过DSL条件查询方法
-	 * 
-	 * @param index
-	 *            索引名称
-	 * @param type
-	 *            类型名称
-	 * @param queryBuilder
-	 *            dslQuery语句构造类
-	 * @param List<Sort>
-	 *            排序列表
-	 * @param pageNum
-	 *            分页号
-	 * @param pageSize
-	 *            分页大小
-	 * @param mapper
-	 *            映射接口实现类
-	 * @return
-	 */
-	public <T> List<T> pagingAndSortQuery(String index, String type, QueryBuilder queryBuilder, List<Sort> sortList, Integer pageNum, Integer pageSize, RowMapper<T> mapper) {
-		LOGGER.info("Enter into pagingAndSortQuery method. index={}, type={}, sortList={}, pageNum={}, pageSize={}", index, type, sortList, pageNum, pageSize);
-
-		SearchRequestBuilder searchRequestBuilder = client.prepareSearch(index).setTypes(type).setSearchType(SearchType.QUERY_THEN_FETCH);
-
-		if (sortList != null && !sortList.isEmpty()) {
-			for (Sort each : sortList) {
-				each.getFiled();
-				each.getSortOrder();
-				searchRequestBuilder.addSort(each.getFiled(), each.getSortOrder());
-			}
-		}
-
-		if (queryBuilder != null) {
-			searchRequestBuilder.setQuery(queryBuilder);
-		}
-
-		SearchResponse searchResponse = searchRequestBuilder.setFrom((pageNum - 1) * pageSize).setSize(pageSize).get();
-		SearchHit[] hits = searchResponse.getHits().getHits();
-		setTotalSize(searchResponse);
-		List<T> rs = new ArrayList<T>();
-		for (SearchHit searchHit : hits) {
-			rs.add(mapper.mapRow(searchHit));
-		}
-		return rs;
-	}
-
-	/**
-	 * 通过DSL条件查询方法
-	 * 
-	 * @param index
-	 *            索引
-	 * @param type
-	 *            类型
-	 * @param queryBuilder
-	 *            DSL查询语句
-	 * @param pageNum
-	 *            页号
-	 * @param pageSize
-	 *            页大小
-	 * @return 索引原始数据
-	 */
-	public SearchHit[] queryWithFilter(String index, String type, QueryBuilder queryBuilder, Integer pageNum, Integer pageSize) {
-		LOGGER.info("Enter into queryWithFilter method. index={}, type={}", index, type);
-		SearchRequestBuilder searchRequestBuilder = client.prepareSearch(index).setTypes(type).setSearchType(SearchType.QUERY_THEN_FETCH);
-		searchRequestBuilder.setQuery(queryBuilder);
-		searchRequestBuilder.setFrom(pageNum - 1);
-		searchRequestBuilder.setSize(pageSize);
 		SearchResponse searchResponse = searchRequestBuilder.get();
 		return searchResponse.getHits().getHits();
 	}
